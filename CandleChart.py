@@ -83,7 +83,7 @@ def makeFig(rows, cols, size):
 def gridFig(row_rate, size):
     rows = sum(row_rate)
     fig = plt.figure(figsize=size)
-    gs = gridspec.GridSpec(rows, 1)
+    gs = gridspec.GridSpec(rows, 1, hspace=0.6)
     axes = []
     begin = 0
     for rate in row_rate:
@@ -189,20 +189,24 @@ class CandleChart:
     DATE_FORMAT_DATE_TIME = '%m-%d %H:%M'
     DATE_FORMAT_DAY_HOUR = '%d/%H'
     
-    def __init__(self, fig, ax, title, date_format=None):
+    def __init__(self, fig, ax, title=None, comment=None, write_time_range=False, date_format=None):
         if date_format is None:
             date_format = self.DATE_FORMAT_TIME
         self.fig = fig
         self.ax = ax
         self.title = title
+        self.comment = comment
+        self.write_time_range = write_time_range
         self.ax.grid(True)
         self.ax.xaxis_date()
         self.ax.xaxis.set_major_formatter(mdates.DateFormatter(date_format))
         
-    def drawCandle(self, Time, Open, High, Low, Close, bar_width=None, tick_minutes=60):    
+    def drawCandle(self, Time, Open, High, Low, Close, bar_width=None, tick_minutes=60, xlabel=False):
+        self.time = Time
         vmin = min(Low)
         vmax = max(High)
-        self.ax.set_title(self.title)
+        if self.title is not None:
+            self.ax.set_title(self.title)
         n = len(Time)
         t0 = awarePyTime2Float(Time[0])
         t1 = awarePyTime2Float(Time[-1])
@@ -222,12 +226,66 @@ class CandleChart:
         tick = self.ticks(Time[0], Time[-1], tick_minutes)        
         self.ax.set_xticks(tick)
         self.ax.set_xlim(t0, t1)
-        self.drawTimeRange(Time[0], Time[-1])
+        self.drawComments()
+        if xlabel == False:
+            self.ax.tick_params(labelbottom=False, bottom=False)
         
-    def drawTimeRange(self, time0, time1):
-        form = '%Y-%m-%d %H:%M'
-        self.drawText(time0, self.yPos(0.95), '  From: ' + time0.strftime(form))
-        self.drawText(time0, self.yPos(0.90), '  To    : ' + time1.strftime(form))
+    def drawLine(self, time, value, color='red', linestyle='solid', linewidth=1.0, ylim=None, label='', xlabel=False):
+        self.time = time
+        tfloat = awarePyTimeList2Float(time)
+        self.ax.plot(tfloat, value, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
+        if ylim is not None:
+            self.ax.set_ylim(ylim[0], ylim[1])
+        self.ax.set_xlim(tfloat[0], tfloat[-1])
+        self.ax.grid(True)
+        self.drawComments()
+        if xlabel == False:
+            self.ax.tick_params(labelbottom=False, bottom=False)
+        
+    def drawBand(self, time, status, colors=None, tick_minutes=60, xlabel=False):
+        self.time = time
+        n = len(time)
+        if n < 2:
+            return
+        if colors is None:
+            colors = ['black', 'blue', 'red', 'pink', 'green', 'cyan', 'brown']
+        if self.title is not None:
+            self.ax.set_title(self.title)
+        box_width = awarePyTime2Float(time[1]) - awarePyTime2Float(time[0])
+        self.graphic_objects = []
+        for i in range(n):
+            t = time[i]
+            s = status[i]
+            if type(colors) == dict:
+                try: 
+                    c = colors[s]
+                except:
+                    c = 'white'
+            else:
+                c = colors[abs(s) % len(colors)]
+            obj = BoxGraphic(t, box_width, 1.0, c)
+            obj.setObject(self.ax)
+            self.graphic_objects.append(obj)  
+        self.ax.autoscale_view()
+        tick = self.ticks(time[0], time[-1], tick_minutes)        
+        self.ax.set_xticks(tick)
+        t0 = awarePyTime2Float(time[0])
+        t1 = awarePyTime2Float(time[-1])
+        self.ax.set_xlim(t0, t1)
+        self.drawComments()
+        if xlabel == False:
+            self.ax.tick_params(labelbottom=False, bottom=False)
+        
+    def drawComments(self):
+        x = self.time[0]
+        s = ''
+        if self.comment is not None:
+            s +=  self.comment
+        if self.write_time_range:
+            form = '%Y-%m-%d %H:%M'
+            s += '  (' + self.time[0].strftime(form)
+            s += ' ... ' + self.time[1].strftime(form) + ')'
+        self.drawText(x, self.yPos(0.92), s)
 
     def yPos(self, rate):
         r = self.getYlimit()
@@ -242,13 +300,7 @@ class CandleChart:
             time += timedelta(minutes=dt_minutes)
         return ticks
         
-    def drawLine(self, time, value, color='red', linestyle='solid', linewidth=1.0, ylim=None, label=''):
-        tfloat = awarePyTimeList2Float(time)
-        self.ax.plot(tfloat, value, color=color, linestyle=linestyle, linewidth=linewidth, label=label)
-        if ylim is not None:
-            self.ax.set_ylim(ylim[0], ylim[1])
-        self.ax.set_xlim(tfloat[0], tfloat[-1])
-        self.ax.grid(True)
+
     
     def hline(self, y, color='black', linewidth=1.0):
         xmin, xmax = self.ax.get_xlim()
@@ -291,9 +343,11 @@ class CandleChart:
             self.ax.set_ylim(ylim[0], ylim[1])
         self.ax.grid()
     
-    def drawMarkers(self, time, ref, offset, signal, value, marker, color, overlay=None, markersize=20, alpha=0.5):
+    def drawMarkers(self, time, ref, offset_rate, signal, value, marker, color, overlay=None, markersize=20, alpha=0.5):
         for t, r, s in zip(time, ref, signal):
             if s == value:
+                lim = self.getYlimit()
+                offset = offset_rate * (lim[1] - lim[0])
                 self.drawMarker(t, r + offset, marker, color, overlay=overlay, markersize=markersize, alpha=alpha)
         
     def drawMarker(self, time, value, marker, color, overlay=None, markersize=20, alpha=0.5):
@@ -321,12 +375,13 @@ class CandleChart:
         return self.ax.get_ylim()
         
 class BandPlot:
-    def __init__(self, fig, ax, title, date_format=None):
+    def __init__(self, fig, ax, title=None, comment=None, date_format=None):
         if date_format is None:
             date_format = CandleChart.DATE_FORMAT_TIME
         self.fig = fig
         self.ax = ax
         self.title = title
+        self.comment = comment
         self.ax.grid(True)
         self.ax.xaxis_date()
         self.ax.xaxis.set_major_formatter(mdates.DateFormatter(date_format))
@@ -346,12 +401,14 @@ class BandPlot:
         return ticks
     
     def drawBand(self, time, status, colors=None, tick_minutes=60): 
+        self.time = time
         n = len(time)
         if n < 2:
             return
         if colors is None:
             colors = ['black', 'blue', 'red', 'pink', 'green', 'cyan', 'brown']
-        self.ax.set_title(self.title)
+        if self.title is not None:
+            self.ax.set_title(self.title)
         box_width = self.boxWidth(time[0], time[1])
         self.graphic_objects = []
         for i in range(n):
@@ -372,9 +429,11 @@ class BandPlot:
         self.ax.set_xticks(tick)
         t0 = awarePyTime2Float(time[0])
         t1 = awarePyTime2Float(time[-1])
-        self.ax.set_xlim(t0, t1)     
+        self.ax.set_xlim(t0, t1)
+        self.drawComments()
         
     def drawLine(self, time, value, color='red', linestyle='solid', linewidth=1.0, timerange=None):
+        self.time = time
         if timerange is not None:
             begin = None
             end = None
@@ -404,8 +463,22 @@ class BandPlot:
         self.ylimit((vmin, vmax))
         self.ax.plot(time2, value2, color=color, linestyle=linestyle, linewidth=linewidth)
         self.ax.grid(True)
-        self.fig.show()    
-    
+        self.fig.show()
+
+    def yPos(self, rate):
+        r = self.getYlimit()
+        return (r[1] - r[0]) * rate + r[0]
+        
+    def drawComments(self):
+        x = self.time[0]
+        y = 0.95
+        if self.comment is not None:
+            self.drawText(x, self.yPos(y), self.comment)
+            
+    def drawText(self, time, value, text, size=10):
+        t = awarePyTime2Float(time)
+        self.ax.text(t, value, text, size=size)
+            
     def xlimit(self, trange):
         self.ax.set_xlim(trange[0], trange[1])
         
