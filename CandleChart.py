@@ -284,7 +284,7 @@ class CandleChart:
         if self.write_time_range:
             form = '%Y-%m-%d %H:%M'
             s += '  (' + self.time[0].strftime(form)
-            s += ' ... ' + self.time[1].strftime(form) + ')'
+            s += ' ... ' + self.time[-1].strftime(form) + ')'
         self.drawText(x, self.yPos(0.92), s)
 
     def yPos(self, rate):
