@@ -18,8 +18,8 @@ from matplotlib.patches import Rectangle
 from datetime import datetime, timedelta
 import matplotlib.dates as mdates
 import matplotlib.gridspec as gridspec
-from Utils import Utils
-from TimeUtils import TimeUtils
+from utils import Utils
+from time_utils import TimeUtils
 from const import const
 
 

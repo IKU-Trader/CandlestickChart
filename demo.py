@@ -11,8 +11,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../CandlestickChart'))
 import pandas as pd
 import numpy as np
 import pytz
-from CandleChart import CandleChart, candleData2arrays, makeFig, gridFig
-from TimeUtils import TimeUtils
+from candle_chart import CandleChart, candleData2arrays, makeFig, gridFig
+from time_utils import TimeUtils
 
 
 def midpoint(ohlcv):
